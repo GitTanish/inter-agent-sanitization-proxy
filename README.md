@@ -220,7 +220,6 @@ Two live runs were performed on 2026-10-24 against NVIDIA-hosted models through 
 
 Dataset: 16 examples (9 threats, 7 benign; 5 `prompt_injection`, 4 `data_exfiltration`).
 
-![Evaluation dashboard: bolt-e4b inspected all 16 messages with 9 true positives and 7 true negatives; lightning-30b inspected 12 of 16 with 4 uninspected](docs/evaluation-results.svg)
 
 #### Primary configuration: `nvidia/nemotron-3.5-bolt-e4b`
 
