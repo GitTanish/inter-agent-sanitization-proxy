@@ -1,0 +1,210 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1070" viewBox="0 0 1600 1070" role="img" aria-labelledby="architecture-title architecture-desc">
+  <title id="architecture-title">Inter-Agent Sanitization Proxy architecture</title>
+  <desc id="architecture-desc">Connected architecture diagram. A caller sends a message to inspect_message, which hashes the frozen original and normalizes a private copy. Two detectors are called sequentially through one shared classifier and deadline. The classifier calls an external OpenAI-compatible model API, parses responses, and validates findings with Pydantic. Findings feed deterministic primary selection; any detector failure flows to result assembly as uninspected and unknown. Both paths become an InspectionResult returned out of band, with a metadata-only AuditLog record.</desc>
+
+  <defs>
+    <pattern id="dot-grid" width="28" height="28" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.1" fill="#CBD5E1" opacity="0.4"/>
+    </pattern>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 Z" fill="#2563EB"/>
+    </marker>
+    <marker id="arrow-dark" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 Z" fill="#334155"/>
+    </marker>
+    <marker id="arrow-amber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 Z" fill="#B45309"/>
+    </marker>
+    <marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 Z" fill="#B91C1C"/>
+    </marker>
+    <marker id="arrow-slate" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 Z" fill="#475569"/>
+    </marker>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 Z" fill="#15803D"/>
+    </marker>
+  </defs>
+
+  <rect width="1600" height="1070" fill="#F8FAFC"/>
+  <rect width="1600" height="1070" fill="url(#dot-grid)"/>
+  <rect width="1600" height="6" fill="#0F172A"/>
+
+  <g font-family="Segoe UI, Inter, Arial, sans-serif">
+    <text x="44" y="52" font-size="12.5" font-weight="700" letter-spacing="2.4" fill="#2563EB">INTER-AGENT SANITIZATION PROXY</text>
+    <text x="44" y="96" font-size="40" font-weight="700" letter-spacing="-1" fill="#0F172A">Inspection architecture</text>
+    <text x="44" y="126" font-size="16.5" fill="#475569">Inspect-only, fail-open screening. Detectors run sequentially under one shared deadline; callers retain delivery control.</text>
+
+    <g font-size="12.5" font-weight="700" letter-spacing="0.9">
+      <rect x="1090" y="46" width="132" height="32" rx="16" fill="#EFF6FF" stroke="#BFDBFE"/>
+      <text x="1156" y="67" text-anchor="middle" fill="#1D4ED8">INSPECT ONLY</text>
+      <rect x="1232" y="46" width="110" height="32" rx="16" fill="#FFF7ED" stroke="#FED7AA"/>
+      <text x="1287" y="67" text-anchor="middle" fill="#9A3412">FAIL OPEN</text>
+      <rect x="1352" y="46" width="198" height="32" rx="16" fill="#F1F5F9" stroke="#CBD5E1"/>
+      <text x="1451" y="67" text-anchor="middle" fill="#475569">CALLER DECIDES</text>
+    </g>
+
+    <rect x="250" y="172" width="1000" height="778" rx="24" fill="#FFFFFF" opacity="0.72" stroke="#CBD5E1" stroke-dasharray="8 8"/>
+    <text x="276" y="198" font-size="12.5" font-weight="700" letter-spacing="1.3" fill="#64748B">PROXY BOUNDARY · inspect_message()</text>
+
+    <rect x="1270" y="230" width="285" height="270" rx="22" fill="#FFFFFF" opacity="0.72" stroke="#FED7AA" stroke-dasharray="6 6"/>
+    <text x="1284" y="254" font-size="11" font-weight="700" letter-spacing="1.2" fill="#9A3412">EXTERNAL TRUST BOUNDARY</text>
+
+    <g fill="none">
+      <path d="M234 375 H271" stroke="#2563EB" stroke-width="2.2" marker-end="url(#arrow-blue)"/>
+      <path d="M445 375 H486" stroke="#2563EB" stroke-width="2.2" marker-end="url(#arrow-blue)"/>
+      <path d="M360 430 V476" stroke="#2563EB" stroke-width="2.2" marker-end="url(#arrow-blue)"/>
+      <path d="M360 585 V626" stroke="#475569" stroke-width="1.8" marker-end="url(#arrow-slate)"/>
+      <path d="M670 375 H690 V252 H731" stroke="#2563EB" stroke-width="2.2" marker-end="url(#arrow-blue)"/>
+      <path d="M690 375 V417 H731" stroke="#2563EB" stroke-width="2.2" marker-end="url(#arrow-blue)"/>
+      <path d="M955 252 H978 V300 H996" stroke="#334155" stroke-width="2" marker-end="url(#arrow-dark)"/>
+      <path d="M955 417 H978 V390 H996" stroke="#334155" stroke-width="2" marker-end="url(#arrow-dark)"/>
+      <path d="M1225 310 H1288" stroke="#334155" stroke-width="2.2" marker-end="url(#arrow-dark)"/>
+      <path d="M1288 365 H1229" stroke="#334155" stroke-width="1.8" stroke-dasharray="4 5" marker-end="url(#arrow-dark)"/>
+      <path d="M735 300 H715 V550 H845" stroke="#B45309" stroke-width="2" fill="none"/>
+      <path d="M845 470 V550" stroke="#B45309" stroke-width="2" fill="none"/>
+      <path d="M845 550 V596" stroke="#B45309" stroke-width="2.2" marker-end="url(#arrow-amber)"/>
+      <path d="M845 550 H980 V825 H959" stroke="#B91C1C" stroke-width="1.8" stroke-dasharray="7 5" marker-end="url(#arrow-red)"/>
+      <path d="M845 715 V756" stroke="#B45309" stroke-width="2.2" marker-end="url(#arrow-amber)"/>
+      <path d="M445 675 H690 V800 H731" stroke="#475569" stroke-width="1.6" stroke-dasharray="2 7" stroke-linecap="round" marker-end="url(#arrow-slate)"/>
+      <path d="M735 845 H669" stroke="#475569" stroke-width="1.6" stroke-dasharray="2 7" stroke-linecap="round" marker-end="url(#arrow-slate)"/>
+      <path d="M845 890 V975 H134 V439" stroke="#15803D" stroke-width="1.9" stroke-dasharray="8 5" marker-end="url(#arrow-green)"/>
+    </g>
+
+    <circle cx="845" cy="550" r="4.5" fill="#B45309"/>
+
+    <g>
+      <rect x="44" y="320" width="190" height="110" rx="16" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.4"/>
+      <text x="62" y="354" font-size="21" font-weight="700" fill="#0F172A">Caller / Agent</text>
+      <text x="62" y="383" font-size="13.5" fill="#475569">owns delivery decision</text>
+      <text x="62" y="407" font-size="13.5" fill="#475569">reads result out of band</text>
+    </g>
+
+    <g>
+      <rect x="275" y="320" width="170" height="110" rx="16" fill="#FFFFFF" stroke="#BFDBFE" stroke-width="1.5"/>
+      <text x="293" y="353" font-size="20" font-weight="700" fill="#0F172A">Proxy entry</text>
+      <text x="293" y="381" font-family="Cascadia Code, Consolas, monospace" font-size="13" fill="#1D4ED8">inspect_message()</text>
+      <text x="293" y="406" font-size="13.5" fill="#475569">validates Message</text>
+    </g>
+
+    <g>
+      <rect x="275" y="480" width="170" height="105" rx="16" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.4"/>
+      <text x="293" y="512" font-size="19" font-weight="700" fill="#0F172A">Original Message</text>
+      <text x="293" y="539" font-size="13" fill="#475569">frozen · never mutated</text>
+      <text x="293" y="562" font-size="13" fill="#475569">canonical source</text>
+    </g>
+
+    <g>
+      <rect x="275" y="630" width="170" height="90" rx="16" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.4"/>
+      <text x="293" y="660" font-size="19" font-weight="700" fill="#0F172A">SHA-256 hash</text>
+      <text x="293" y="685" font-size="13" fill="#475569">sorted-key JSON</text>
+      <text x="293" y="706" font-family="Cascadia Code, Consolas, monospace" font-size="11.5" fill="#475569">message_hash</text>
+    </g>
+
+    <g>
+      <rect x="490" y="320" width="180" height="110" rx="16" fill="#F0FDFA" stroke="#99F6E4" stroke-width="1.5"/>
+      <text x="508" y="351" font-size="20" font-weight="700" fill="#134E4A">Normalizer</text>
+      <text x="508" y="378" font-size="13" fill="#0F766E">private copy only</text>
+      <text x="508" y="401" font-size="13" fill="#0F766E">NFKC · zero-width · bidi</text>
+      <text x="508" y="422" font-size="13" fill="#0F766E">collapses whitespace</text>
+    </g>
+
+    <g>
+      <rect x="735" y="220" width="220" height="105" rx="16" fill="#F5F3FF" stroke="#C4B5FD" stroke-width="1.5"/>
+      <text x="753" y="251" font-size="20" font-weight="700" fill="#0F172A">Prompt injection</text>
+      <text x="753" y="278" font-size="13.5" fill="#5B21B6">detector · prompt v1</text>
+      <text x="753" y="300" font-size="13" fill="#6D28D9">category must match</text>
+    </g>
+
+    <g>
+      <rect x="735" y="365" width="220" height="105" rx="16" fill="#F0FDFA" stroke="#99F6E4" stroke-width="1.5"/>
+      <text x="753" y="396" font-size="20" font-weight="700" fill="#0F172A">Data exfiltration</text>
+      <text x="753" y="423" font-size="13.5" fill="#0F766E">detector · prompt v1</text>
+      <text x="753" y="445" font-size="13" fill="#0F766E">category must match</text>
+    </g>
+
+    <text x="735" y="502" font-size="13" fill="#64748B">both detectors are called sequentially</text>
+
+    <g>
+      <rect x="1000" y="250" width="225" height="200" rx="16" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.5"/>
+      <text x="1018" y="281" font-size="21" font-weight="700" fill="#0F172A">LLMClassifier</text>
+      <text x="1018" y="305" font-size="13.5" fill="#475569">shared provider interface</text>
+      <rect x="1018" y="322" width="190" height="34" rx="10" fill="#FFFBEB" stroke="#FDE68A"/>
+      <text x="1113" y="344" text-anchor="middle" font-size="13.5" font-weight="700" fill="#92400E">one shared deadline</text>
+      <rect x="1018" y="364" width="190" height="34" rx="10" fill="#FFFBEB" stroke="#FDE68A"/>
+      <text x="1113" y="386" text-anchor="middle" font-size="13.5" font-weight="700" fill="#92400E">retry ≤ 1 on transient</text>
+      <text x="1018" y="421" font-size="13" fill="#475569">JSON parse + Pydantic</text>
+      <text x="1018" y="439" font-size="12.5" fill="#64748B">invalid output not retried</text>
+    </g>
+
+    <g>
+      <rect x="1292" y="274" width="240" height="150" rx="16" fill="#FFF7ED" stroke="#FED7AA" stroke-width="1.5"/>
+      <text x="1312" y="308" font-size="21" font-weight="700" fill="#0F172A">Model API</text>
+      <text x="1312" y="334" font-size="13.5" fill="#9A3412">NVIDIA-compatible</text>
+      <text x="1312" y="357" font-size="13.5" fill="#9A3412">OpenAI chat protocol</text>
+      <text x="1312" y="380" font-size="13" fill="#C2410C">HTTPS · Bearer auth</text>
+      <text x="1312" y="402" font-size="12.5" fill="#C2410C">trusted operator</text>
+    </g>
+
+    <g>
+      <rect x="735" y="600" width="220" height="115" rx="16" fill="#FFFBEB" stroke="#FDE68A" stroke-width="1.5"/>
+      <text x="753" y="630" font-size="20" font-weight="700" fill="#0F172A">Primary finding</text>
+      <text x="753" y="654" font-size="13.5" fill="#92400E">deterministic policy</text>
+      <text x="753" y="679" font-size="13" fill="#92400E">severity first</text>
+      <text x="753" y="700" font-size="13" fill="#92400E">DE wins ties · IDs/reason/evidence</text>
+    </g>
+
+    <g>
+      <rect x="735" y="760" width="220" height="130" rx="16" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.5"/>
+      <text x="753" y="792" font-size="20" font-weight="700" fill="#0F172A">Assemble result</text>
+      <text x="753" y="817" font-family="Cascadia Code, Consolas, monospace" font-size="12.5" fill="#334155">InspectionResult</text>
+      <text x="753" y="840" font-size="13" fill="#475569">status · verdict · finding</text>
+      <text x="753" y="862" font-size="13" fill="#475569">hash · prompts · duration</text>
+      <text x="753" y="882" font-size="12.5" fill="#B91C1C">fail → uninspected + unknown</text>
+    </g>
+
+    <g>
+      <rect x="465" y="805" width="200" height="115" rx="16" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.4"/>
+      <text x="483" y="835" font-size="19" font-weight="700" fill="#0F172A">AuditLog</text>
+      <text x="483" y="860" font-size="13.5" fill="#475569">metadata only</text>
+      <text x="483" y="882" font-size="13" fill="#475569">recomputes SHA-256</text>
+      <text x="483" y="902" font-size="12.5" fill="#64748B">no body / reason / evidence</text>
+    </g>
+
+    <text x="254" y="364" text-anchor="middle" font-size="12" fill="#1D4ED8">Message</text>
+    <text x="466" y="364" text-anchor="middle" font-size="12" fill="#1D4ED8">copy</text>
+    <text x="372" y="457" font-size="12.5" fill="#1D4ED8">retain original</text>
+    <text x="372" y="611" font-size="12.5" fill="#475569">canonicalize</text>
+    <text x="949" y="350" text-anchor="end" font-size="12.5" fill="#334155">classify()</text>
+    <text x="1256" y="298" text-anchor="middle" font-size="12" fill="#334155">HTTPS</text>
+    <text x="1256" y="384" text-anchor="middle" font-size="12" fill="#334155">raw JSON</text>
+    <text x="856" y="581" font-size="12.5" fill="#B45309">finding | null</text>
+    <text x="856" y="742" font-size="12.5" fill="#B45309">primary_finding</text>
+    <text x="548" y="667" font-size="12.5" fill="#475569">message_hash</text>
+    <text x="700" y="836" text-anchor="middle" font-size="12" fill="#475569">record</text>
+
+    <text x="994" y="610" font-size="14" font-weight="700" fill="#B91C1C">failure path</text>
+    <text x="994" y="633" font-size="12.5" fill="#B91C1C">timeout · provider error</text>
+    <text x="994" y="654" font-size="12.5" fill="#B91C1C">invalid output · prompt error</text>
+    <text x="994" y="681" font-size="12.5" font-weight="700" fill="#B91C1C">→ uninspected + unknown</text>
+
+    <text x="600" y="1002" text-anchor="middle" font-size="14.5" fill="#166534">Caller receives the result out of band; the proxy never forwards, blocks, or mutates.</text>
+
+    <line x1="44" y1="1022" x2="1556" y2="1022" stroke="#E2E8F0"/>
+
+    <g font-size="14.5" fill="#475569">
+      <line x1="44" y1="1043" x2="78" y2="1043" stroke="#2563EB" stroke-width="2.2"/>
+      <text x="88" y="1048">message flow</text>
+      <line x1="286" y1="1043" x2="320" y2="1043" stroke="#B45309" stroke-width="2.2"/>
+      <text x="330" y="1048">detector outcome</text>
+      <line x1="528" y1="1043" x2="562" y2="1043" stroke="#334155" stroke-width="2.2"/>
+      <text x="572" y="1048">model call</text>
+      <line x1="770" y1="1043" x2="804" y2="1043" stroke="#B91C1C" stroke-width="2" stroke-dasharray="7 5"/>
+      <text x="814" y="1048">failure / fail-open</text>
+      <line x1="1012" y1="1043" x2="1046" y2="1043" stroke="#475569" stroke-width="1.8" stroke-dasharray="2 7" stroke-linecap="round"/>
+      <text x="1056" y="1048">audit / hash</text>
+      <line x1="1254" y1="1043" x2="1288" y2="1043" stroke="#15803D" stroke-width="2" stroke-dasharray="8 5"/>
+      <text x="1298" y="1048">out-of-band result</text>
+    </g>
+  </g>
+</svg>
