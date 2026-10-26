@@ -12,18 +12,41 @@ Failing to inspect a message is not the same as finding it safe. If a detector f
 
 Normalize a copy. Run both detectors sequentially under one shared deadline. Select the primary finding. Return the result and record audit metadata without storing the message body.
 
-[View the system architecture](docs/architecture.svg).
+```mermaid
+flowchart TD
+    Caller["Caller supplies an unchanged Message"] --> Entry["inspect_message"]
 
-[![Architecture: hash the frozen original, normalize a private copy, call two detectors sequentially through one shared classifier and deadline, select a primary finding, return an out-of-band result, and write a metadata-only audit record](docs/architecture.svg)](docs/architecture.svg)
+    subgraph Proxy["Inspect-only proxy"]
+        Entry --> Hash["Hash the original message with SHA-256"]
+        Hash --> Normalize["Normalize a private copy"]
+        Normalize --> Prompts{"Detector prompts loaded?"}
+        Prompts -->|Yes| Detectors["Run prompt-injection and data-exfiltration detectors sequentially"]
+        Detectors --> Classifier["Shared LLMClassifier: one deadline, bounded retries, strict JSON validation"]
+        Classifier --> Outcomes["Collect detector outcomes"]
+        Outcomes --> Primary["Select a primary finding, if any"]
+        Primary --> Complete{"Both detectors completed?"}
+        Complete -->|Yes| Inspected["inspected: threat_detected or no_threat_detected"]
+        Complete -->|No| Unknown["uninspected: unknown, with any partial finding"]
+        Prompts -->|No| Unknown
+        Inspected --> Result["Immutable InspectionResult"]
+        Unknown --> Result
+        Hash -.->|Original message hash| Result
+        Result -.-> Audit["Optional AuditLog: metadata only, no message body"]
+    end
+
+    Classifier -->|Normalized content and metadata| API["Trusted external model API: OpenAI-compatible endpoint"]
+    API -->|Model response or provider failure| Classifier
+    Result --> Decision["Caller receives the result and decides what to do; proxy never forwards or blocks"]
+```
+
+[View the detailed architecture SVG](docs/architecture.svg).
 
 ## What it does
 
 - Inspects plain text and structured JSON.
 - Normalizes a copy with NFKC, removes zero-width and bidi controls, and canonicalizes whitespace.
-- Checks for `prompt_injection` and `data_exfiltration` with versioned prompts.
-- Reports one primary finding and makes incomplete inspections explicit.
-- Logs metadata and a hash of the original message, never its body.
-- Includes a labeled benchmark and deterministic tests for the evaluation math.
+- Uses versioned prompts for `prompt_injection` and `data_exfiltration`.
+- Includes a labeled benchmark and deterministic tests.
 
 ## Installation
 
@@ -91,47 +114,25 @@ print(audit.to_jsonl())
 | `verdict` | The threat conclusion. `unknown` is used whenever inspection did not complete. |
 | `primary_finding` | At most one finding. If inspection is incomplete, a partial finding may still be present, but the verdict remains `unknown`. |
 | `message_hash` | SHA-256 of the canonical original message. |
-| `prompt_version` | Prompt versions used, keyed by category, for example `{"prompt_injection": "v1", "data_exfiltration": "v1"}`. |
+| `prompt_version` | Prompt versions used, keyed by category. |
 | `duration_ms` | End-to-end inspection time. |
 | `failure_reason` | `None` for complete inspections. Otherwise one or more `detector=reason` pairs joined by `;`. |
 
-A `Finding` contains:
-
-- `category`: `prompt_injection` or `data_exfiltration`.
-- `severity`: `info`, `low`, `medium`, or `high`.
-- `reason`: a short explanation.
-- `detector`: the detector identifier.
-- `evidence`: a bounded `locator` and optional `excerpt`, capped at 200 characters.
+A `Finding` contains a category, severity (`info`, `low`, `medium`, or `high`), reason, detector ID, and evidence with a locator and optional excerpt capped at 200 characters.
 
 Outcome rules:
 
 - Both detectors complete with no findings: `inspected` + `no_threat_detected`.
 - Both detectors complete with at least one finding: `inspected` + `threat_detected`.
-- Any required detector fails: `uninspected` + `unknown`.
-- `no_threat_detected` is never returned when a detector failed.
+- Any required detector fails: `uninspected` + `unknown`, never clean.
 
-### Primary finding selection
-
-The primary finding is chosen deterministically:
-
-1. Highest severity wins.
-2. If severity ties, `data_exfiltration` wins over `prompt_injection`.
-3. Remaining ties are broken by detector ID, reason, and evidence locator/excerpt.
-
-## Inspection pipeline
-
-1. **Normalize** a copy of the message content and metadata. NFKC normalization and control-character cleanup make common obfuscations easier to inspect.
-2. **Load prompts** for both categories. Each detector has its own prompt and prompt version.
-3. **Call the classifier** under one shared deadline. Transient provider failures are retried at most once; invalid model output is validated once and is not retried.
-4. **Classify** each response into a typed `Finding` or a clean result. Categories, severities, field names, and JSON shape are validated strictly.
-5. **Select** one primary finding, if any.
-6. **Return and audit** an `InspectionResult`. Audit metadata is derived from the original message and result.
+The highest-severity finding wins. On a tie, `data_exfiltration` takes priority; remaining ties use detector ID, reason, and evidence locator/excerpt.
 
 ## Provider contract
 
 Custom providers implement `complete(*, system_prompt: str, user_prompt: str, timeout: float) -> str`. Return a JSON object with a single `finding` field: `null` for clean content, or an object containing `category`, `severity`, `reason`, and optional text `evidence`.
 
-The category must match the detector that issued the prompt. Extra fields, an unrecognized severity, non-text reasons, and malformed JSON are rejected as `invalid_output`.
+The category must match the detector. Extra fields, unknown severities, non-text reasons, and malformed JSON produce `invalid_output`.
 
 `LLMClassifier` uses a 20-second shared deadline by default and permits at most one retry. `HTTPChatProvider` treats HTTP 429, HTTP 5xx, network failures, and request timeouts as transient; other HTTP and response-shape errors are permanent. Retries do not apply to schema-invalid output.
 
@@ -141,14 +142,7 @@ The caller can replace the default detectors by passing a sequence to `inspect_m
 
 `AuditLog` stores records in memory and exports JSON Lines with `audit.write_jsonl("audit.jsonl")`.
 
-Each record contains:
-
-- timestamp, message ID, sender, recipient
-- original-message SHA-256 hash
-- inspection status, verdict, and duration
-- primary category, severity, and detector
-- failure reason and prompt versions
-- sorted metadata key names
+Records contain the timestamp, message ID, sender, recipient, original-message hash, status, verdict, duration, primary category/severity/detector, failure reason, prompt versions, and sorted metadata key names.
 
 The log leaves out message content, metadata values, finding reasons, and evidence. Use the hash for correlation and deduplication, not content recovery. The log has no signatures and is not tamper-evident.
 
@@ -158,19 +152,15 @@ Detection is one layer. Permissions, approval gates, and sandboxing still matter
 
 ### In scope
 
-- Untrusted or compromised messages arriving from another agent, tool, model, or retrieved document.
+- Untrusted messages from another agent, tool, model, or retrieved document.
 - Prompt injection that tries to redirect instructions, impersonate a system/operator role, bypass approval checks, or trigger unintended tools.
 - Data exfiltration that tries to send credentials, secrets, customer records, environment variables, or context data to an external destination, including through URLs, markdown, or structured payloads.
 - Obfuscation through full-width characters, zero-width characters, bidi controls, and repeated whitespace.
-- Text and structured JSON content in a single message.
 
 ### Trust boundaries and assumptions
 
-- The proxy result is advisory. The caller remains responsible for authorization, approval gates, sandboxing, tool permissions, and data-loss prevention.
 - The classifier endpoint and its operator are trusted infrastructure. Message content and normalized metadata are sent to that endpoint; do not use an external provider for content that cannot leave your environment.
-- The caller must treat `uninspected`/`unknown` as not evaluated. It should not be treated as clean.
-- TLS, provider authentication, and API-key handling are the caller's responsibility.
-- Audit storage, retention, and access control are deployment concerns.
+- TLS, authentication, API keys, and audit storage, retention, and access control are deployment responsibilities.
 
 ### Out of scope
 
@@ -179,7 +169,6 @@ Detection is one layer. Permissions, approval gates, and sandboxing still matter
 - Detecting every secret, PII type, malware artifact, or policy violation. The two categories are the complete scope.
 - Preventing a compromised agent from performing harmful actions after a clean result.
 - Cryptographic authenticity of messages. The hash is not a signature.
-- Message modification, blocking, redaction, quarantine, or tool-call enforcement. The proxy only inspects and reports.
 
 Additional limitations:
 
@@ -187,12 +176,10 @@ Additional limitations:
 - A malicious message may try to manipulate the classifier itself. The prompt isolates the task, but prompt injection against the detector remains a risk.
 - Long messages may exceed the model context window; the proxy does not truncate or split them.
 - Legitimate workflows can look like exfiltration, especially when credentials or customer data are intentionally moved between services.
-- Provider outages intentionally degrade to `uninspected` rather than raising an error or declaring the message clean.
-- The benchmark is small, static, and intended for regression checking, not as a production accuracy guarantee.
 
 ## Benchmark
 
-The benchmark dataset is `tests/benchmark/dataset.jsonl`. Each record contains `id`, `sender`, `recipient`, `content`, `metadata`, and `expected_category` (`prompt_injection`, `data_exfiltration`, or `null` for benign and ambiguous examples). It covers plain text, structured JSON, both threat categories, and benign and ambiguous cases.
+The dataset is `tests/benchmark/dataset.jsonl`. It covers plain text, structured JSON, both threat categories, and benign and ambiguous cases. Labels are `prompt_injection`, `data_exfiltration`, or `null` for benign and ambiguous examples.
 
 Run against a live model after filling in `.env`:
 
@@ -200,17 +187,11 @@ Run against a live model after filling in `.env`:
 python tests/benchmark/evaluate.py
 ```
 
-The command prints a JSON report. Use `--output report.json` to write it to a file, or pass `--endpoint`, `--model`, `--api-key`, `--timeout`, and `--dataset` explicitly. Existing environment variables override `.env`; CLI arguments override both.
+The command prints JSON. Use `--output report.json` to save it. Override configuration with `--endpoint`, `--model`, `--api-key`, `--timeout`, or `--dataset`.
 
 > **Rate limit:** The NVIDIA NIM endpoint is limited to 40 requests per minute. A full 16-message pass makes 32 model calls (two detectors per message) before retries, so it sits close to that cap. Retries or a larger dataset can exhaust the limit; pace the run or add client-side throttling before scaling it up.
 
-The report includes:
-
-- dataset path, provider name, model ID, prompt versions, and generation time
-- inspected and uninspected counts, plus inspection coverage
-- overall binary precision, recall, and false-positive rate
-- one-vs-rest precision, recall, and false-positive rate for each category
-- true-positive, false-positive, true-negative, and false-negative counts
+The report includes dataset and model details, prompt versions, generation time, inspection coverage, confusion counts, and precision, recall, and false-positive rates overall and per category.
 
 Uninspected examples are reported separately and excluded from precision, recall, and false-positive-rate calculations. For overall binary metrics, any labeled threat category counts as positive.
 
@@ -249,18 +230,7 @@ Re-run the benchmark when the model, provider, or prompt version changes. The be
 python -m pytest
 ```
 
-The test suite covers:
-
-- Pydantic schema invariants and result consistency
-- text and structured normalization, including Unicode and control-character handling
-- classifier prompt construction, strict parsing, retries, and deadlines
-- both detector prompts and detector failure mapping
-- proxy outcomes, partial findings, shared deadlines, and fail-open behavior
-- metadata-only audit logging and canonical hashing
-- benchmark loading, metric calculations, false-positive accounting, and uninspected reporting
-- `.env` parsing, precedence, and missing/invalid file handling
-
-Tests do not call an external model API.
+Tests cover schemas, normalization, detectors, retries and deadlines, failure handling, audit logging, benchmark math, and `.env` configuration. They do not call an external model API.
 
 ## Project layout
 
